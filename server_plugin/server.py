@@ -11,6 +11,8 @@
 #  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
+
+import time
 from cloudify import ctx
 from cloudify.decorators import operation
 from cloudify import exceptions as cfy_exc
@@ -141,10 +143,14 @@ def create(vca_client, **kwargs):
             raise cfy_exc.NonRecoverableError(
                 "Can't run customization in next power on")
 
+    _start(vca_client)
+    ctx.logger.info('Finished starting VM. Waiting for ip...')
+    while not _get_state(vca_client):
+        ctx.logger.info('IP Not discovered yet. Sleeping for 3 seconds...')
+        time.sleep(3)
 
-@operation
-@with_vca_client
-def start(vca_client, **kwargs):
+
+def _start(vca_client):
     vapp_name = ctx.instance.runtime_properties[VCLOUD_VAPP_NAME]
     config = get_vcloud_config()
     vdc = vca_client.get_vdc(config['vdc'])
@@ -155,6 +161,12 @@ def start(vca_client, **kwargs):
         if not task:
             raise cfy_exc.NonRecoverableError("Could not create vApp")
         wait_for_task(vca_client, task)
+
+
+@operation
+@with_vca_client
+def start(vca_client, **kwargs):
+    ctx.logger.info('Start operation currently does nothing.')
 
 
 @operation
@@ -186,9 +198,7 @@ def delete(vca_client, **kwargs):
     del ctx.instance.runtime_properties[VCLOUD_VAPP_NAME]
 
 
-@operation
-@with_vca_client
-def get_state(vca_client, **kwargs):
+def _get_state(vca_client):
     vapp_name = ctx.instance.runtime_properties[VCLOUD_VAPP_NAME]
     config = get_vcloud_config()
     vdc = vca_client.get_vdc(config['vdc'])
@@ -211,6 +221,12 @@ def get_state(vca_client, **kwargs):
                 ctx.instance.runtime_properties['networks'] = networks
                 return True
     return False
+
+
+@operation
+@with_vca_client
+def get_state(vca_client, **kwargs):
+    return True
 
 
 def _vapp_is_on(vapp):
