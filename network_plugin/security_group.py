@@ -4,13 +4,13 @@ from cloudify.decorators import operation
 from vcloud_plugin_common import (with_vca_client, get_mandatory,
                                   get_vcloud_config)
 from network_plugin import (check_ip, get_vm_ip, save_gateway_configuration,
-                            get_gateway, utils)
+                            get_gateway, utils, set_retry)
 
 
 CREATE_RULE = 1
 DELETE_RULE = 2
 
-ADDRESS_LITERALS = ("Any", "Internal", "External", "Host")
+ADDRESS_LITERALS = ("any", "internal", "external", "host")
 ACTIONS = ("allow", "deny")
 
 
@@ -20,7 +20,8 @@ def create(vca_client, **kwargs):
     """
         create firewall rules for node
     """
-    _rule_operation(CREATE_RULE, vca_client)
+    if not _rule_operation(CREATE_RULE, vca_client):
+        return set_retry(ctx)
 
 
 @operation
@@ -29,7 +30,8 @@ def delete(vca_client, **kwargs):
     """
         drop firewall rules for node
     """
-    _rule_operation(DELETE_RULE, vca_client)
+    if not _rule_operation(DELETE_RULE, vca_client):
+        return set_retry(ctx)
 
 
 @operation
@@ -56,7 +58,7 @@ def creation_validation(vca_client, **kwargs):
             if not isinstance(source, basestring):
                 raise cfy_exc.NonRecoverableError(
                     "Parameter 'source' must be valid IP address string.")
-            if source.capitalize() not in ADDRESS_LITERALS:
+            if not _is_literal_ip(source):
                 check_ip(source)
 
         utils.check_port(rule.get('source_port'))
@@ -66,8 +68,8 @@ def creation_validation(vca_client, **kwargs):
             if not isinstance(destination, basestring):
                 raise cfy_exc.NonRecoverableError(
                     "Parameter 'destination' must be valid IP address string.")
-            if destination.capitalize() not in ADDRESS_LITERALS:
-                check_ip(source)
+            if not _is_literal_ip(destination):
+                check_ip(destination)
 
         utils.check_port(rule.get('destination_port'))
 
@@ -91,20 +93,22 @@ def _rule_operation(operation, vca_client):
     """
     gateway = get_gateway(
         vca_client, _get_gateway_name(ctx.target.node.properties))
+    if gateway.is_busy():
+        return False
     for rule in ctx.target.node.properties['rules']:
         description = rule.get('description', "Rule added by pyvcloud").strip()
-        source_ip = rule.get("source", "external").capitalize()
-        if source_ip not in ADDRESS_LITERALS:
+        source_ip = rule.get("source", "external")
+        if not _is_literal_ip(source_ip):
             check_ip(source_ip)
-        elif source_ip == ADDRESS_LITERALS[-1]:
+        elif _is_host_ip(source_ip):
             source_ip = get_vm_ip(vca_client, ctx, gateway)
-        source_port = str(rule.get("source_port", "any")).capitalize()
-        dest_ip = rule.get("destination", "external").capitalize()
-        if dest_ip not in ADDRESS_LITERALS:
+        source_port = str(rule.get("source_port", "any"))
+        dest_ip = rule.get("destination", "external")
+        if not _is_literal_ip(dest_ip):
             check_ip(dest_ip)
-        elif dest_ip == ADDRESS_LITERALS[-1]:
+        elif _is_host_ip(dest_ip):
             dest_ip = get_vm_ip(vca_client, ctx, gateway)
-        dest_port = str(rule.get('destination_port', 'any')).capitalize()
+        dest_port = str(rule.get('destination_port', 'any'))
         protocol = rule.get('protocol', 'any').capitalize()
         action = rule.get("action", "allow")
         log = rule.get('log_traffic', False)
@@ -116,14 +120,12 @@ def _rule_operation(operation, vca_client):
             ctx.logger.info(
                 "Firewall rule has been created: {0}".format(description))
         elif operation == DELETE_RULE:
-            gateway.delete_fw_rule(protocol, dest_port, _check_case(dest_ip),
-                                   source_port, _check_case(source_ip))
+            gateway.delete_fw_rule(protocol, dest_port, dest_ip,
+                                   source_port, source_ip)
             ctx.logger.info(
                 "Firewall rule has been deleted: {0}".format(description))
 
-    if not save_gateway_configuration(gateway, vca_client):
-        return ctx.operation.retry(message='Waiting for gateway.',
-                                   retry_after=10)
+    return save_gateway_configuration(gateway, vca_client)
 
 
 def _get_gateway_name(properties):
@@ -139,12 +141,9 @@ def _get_gateway_name(properties):
     return getaway_name
 
 
-def _check_case(value):
-    """
-    Fix behavior in pyvcloud.
-    'Any' must be capitalized, but
-    'internal' or 'external' must be in low case.
-    """
-    if value != 'Any':
-        return value.lower()
-    return value
+def _is_literal_ip(ip):
+    return ip.lower() in ADDRESS_LITERALS
+
+
+def _is_host_ip(ip):
+    return ip.lower() == "host"

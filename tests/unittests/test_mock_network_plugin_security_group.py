@@ -93,17 +93,14 @@ class NetworkPluginSecurityGroupMockTestCase(test_mock_base.TestBase):
         # check busy
         gateway = fake_client._vdc_gateway
         self.set_gateway_busy(gateway)
-        self.prepare_retry(fake_ctx)
         self.set_services_conf_result(
             fake_client._vdc_gateway, None
         )
         with mock.patch('network_plugin.security_group.ctx', fake_ctx):
             with mock.patch('vcloud_plugin_common.ctx', fake_ctx):
-                security_group._rule_operation(
+                self.assertFalse(security_group._rule_operation(
                     rule_type, fake_client
-                )
-
-        self.check_retry_realy_called(fake_ctx)
+                ))
 
     def test_rule_operation_empty_rule(self):
         for rule_type in [
@@ -124,12 +121,12 @@ class NetworkPluginSecurityGroupMockTestCase(test_mock_base.TestBase):
             if rule_type == security_group.CREATE_RULE:
                 gateway.add_fw_rule.assert_called_once_with(
                     True, 'Rule added by pyvcloud', 'allow', 'Any',
-                    'Any', 'External', 'Any', 'External', False
+                    'any', 'external', 'any', 'external', False
                 )
                 self.assertFalse(gateway.delete_fw_rule.called)
             else:
                 gateway.delete_fw_rule.assert_called_once_with(
-                    'Any', 'Any', 'external', 'Any', 'external'
+                    'Any', 'any', 'external', 'any', 'external'
                 )
                 self.assertFalse(gateway.add_fw_rule.called)
             self.check_rule_operation_fail(rule_type, [{}])
@@ -155,7 +152,7 @@ class NetworkPluginSecurityGroupMockTestCase(test_mock_base.TestBase):
             if rule_type == security_group.CREATE_RULE:
                 gateway.add_fw_rule.assert_called_once_with(
                     True, 'description', 'deny', 'Tcp', '40',
-                    'Internal', '22', 'External', True
+                    'internal', '22', 'external', True
                 )
                 self.assertFalse(gateway.delete_fw_rule.called)
             else:
