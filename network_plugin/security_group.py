@@ -4,7 +4,7 @@ from cloudify.decorators import operation
 from vcloud_plugin_common import (with_vca_client, get_mandatory,
                                   get_vcloud_config)
 from network_plugin import (check_ip, get_vm_ip, save_gateway_configuration,
-                            check_protocol, check_port, get_gateway)
+                            get_gateway, utils)
 
 
 CREATE_RULE = 1
@@ -17,19 +17,30 @@ ACTIONS = ("allow", "deny")
 @operation
 @with_vca_client
 def create(vca_client, **kwargs):
+    """
+        create firewall rules for node
+    """
     _rule_operation(CREATE_RULE, vca_client)
 
 
 @operation
 @with_vca_client
 def delete(vca_client, **kwargs):
+    """
+        drop firewall rules for node
+    """
     _rule_operation(DELETE_RULE, vca_client)
 
 
 @operation
 @with_vca_client
 def creation_validation(vca_client, **kwargs):
-    getaway = get_gateway(vca_client, _get_gateway_name(ctx.node.properties))
+    """
+        validate firewall rules for node
+    """
+    getaway = get_gateway(
+        vca_client, _get_gateway_name(ctx.node.properties)
+    )
     if not getaway.is_fw_enabled():
         raise cfy_exc.NonRecoverableError(
             "Gateway firewall is disabled. Please, enable firewall.")
@@ -48,7 +59,7 @@ def creation_validation(vca_client, **kwargs):
             if source.capitalize() not in ADDRESS_LITERALS:
                 check_ip(source)
 
-        check_port(rule.get('source_port', 'any'))
+        utils.check_port(rule.get('source_port'))
 
         destination = rule.get('destination')
         if destination:
@@ -58,9 +69,9 @@ def creation_validation(vca_client, **kwargs):
             if destination.capitalize() not in ADDRESS_LITERALS:
                 check_ip(source)
 
-        check_port(rule.get('destination_port', 'any'))
+        utils.check_port(rule.get('destination_port'))
 
-        check_protocol(rule.get('protocol', 'any'))
+        utils.check_protocol(rule.get('protocol'))
 
         action = get_mandatory(rule, "action")
         if (not isinstance(action, basestring)
@@ -75,6 +86,9 @@ def creation_validation(vca_client, **kwargs):
 
 
 def _rule_operation(operation, vca_client):
+    """
+        create/delete firewall rules in gateway for current node
+    """
     gateway = get_gateway(
         vca_client, _get_gateway_name(ctx.target.node.properties))
     for rule in ctx.target.node.properties['rules']:
@@ -113,6 +127,10 @@ def _rule_operation(operation, vca_client):
 
 
 def _get_gateway_name(properties):
+    """
+        return geteway for current node from vcloud config or security
+        group settings
+    """
     security_group = properties.get('security_group')
     if security_group and 'edge_gateway' in security_group:
         getaway_name = security_group.get('edge_gateway')

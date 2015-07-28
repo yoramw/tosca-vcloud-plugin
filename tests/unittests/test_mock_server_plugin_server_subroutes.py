@@ -1,10 +1,24 @@
+# Copyright (c) 2014 GigaSpaces Technologies Ltd. All rights reserved
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+#  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  * See the License for the specific language governing permissions and
+#  * limitations under the License.
+
 import mock
 import unittest
 
 from cloudify import exceptions as cfy_exc
 from cloudify import mocks as cfy_mocks
 from server_plugin import server
-import test_mock_base
+from tests.unittests import test_mock_base
 
 
 class ServerPluginServerSubRoutesMockTestCase(test_mock_base.TestBase):
@@ -413,10 +427,10 @@ class ServerPluginServerSubRoutesMockTestCase(test_mock_base.TestBase):
         # no networks
         fake_ctx.instance._relationships = []
 
-        def _gen_vca_client_network(vdc_name, network_name):
+        def _generate_fake_client_network(vdc_name, network_name):
             return None
 
-        fake_client.get_network = _gen_vca_client_network
+        fake_client.get_network = _generate_fake_client_network
         with mock.patch('server_plugin.server.ctx', fake_ctx):
             with mock.patch('vcloud_plugin_common.ctx', fake_ctx):
                 with self.assertRaises(cfy_exc.NonRecoverableError):

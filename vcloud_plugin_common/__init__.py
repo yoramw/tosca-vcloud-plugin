@@ -69,7 +69,9 @@ PRIVATE_SERVICE_TYPE = 'vcd'
 
 
 def transform_resource_name(res, ctx):
-
+    """
+        return name as prefix from bootstrap context + resource name
+    """
     if isinstance(res, basestring):
         res = {'name': res}
 
@@ -96,11 +98,17 @@ def transform_resource_name(res, ctx):
 
 
 class Config(object):
+    """
+        load global config
+    """
 
     VCLOUD_CONFIG_PATH_ENV_VAR = 'VCLOUD_CONFIG_PATH'
     VCLOUD_CONFIG_PATH_DEFAULT = '~/vcloud_config.yaml'
 
     def get(self):
+        """
+            return settings from ~/vcloud_config.yaml
+        """
         cfg = {}
         env_name = self.VCLOUD_CONFIG_PATH_ENV_VAR
         default_location_tpl = self.VCLOUD_CONFIG_PATH_DEFAULT
@@ -120,6 +128,9 @@ class VcloudAirClient(object):
     LOGIN_RETRY_NUM = 5
 
     def get(self, config=None, *args, **kw):
+        """
+            return new vca client
+        """
         static_config = self.__class__.config().get()
         cfg = {}
         cfg.update(static_config)
@@ -128,6 +139,9 @@ class VcloudAirClient(object):
         return self.connect(cfg)
 
     def connect(self, cfg):
+        """
+            login to instance described in settings
+        """
         url = cfg.get('url')
         username = cfg.get('username')
         password = cfg.get('password')
@@ -141,8 +155,9 @@ class VcloudAirClient(object):
         if not (all([url, token]) or all([url, username, password])):
             raise cfy_exc.NonRecoverableError(
                 "Login credentials must be specified")
-        if (service_type == SUBSCRIPTION_SERVICE_TYPE
-                and not (service and org_name)):
+        if (service_type == SUBSCRIPTION_SERVICE_TYPE and not (
+            service and org_name
+        )):
             raise cfy_exc.NonRecoverableError(
                 "vCloud service and vDC must be specified")
 
@@ -164,12 +179,17 @@ class VcloudAirClient(object):
 
     def _subscription_login(self, url, username, password, token, service,
                             org_name):
+        """
+            login to subscription service
+        """
         logined = False
         vdc_logined = False
 
         vca = vcloudair.VCA(
             url, username, service_type=SUBSCRIPTION_SERVICE_TYPE,
             version='5.6')
+
+        # login with token
         if token:
             for _ in range(self.LOGIN_RETRY_NUM):
                 logined = vca.login(token=token)
@@ -181,6 +201,7 @@ class VcloudAirClient(object):
                     ctx.logger.info("Login using token successful.")
                     break
 
+        # outdated token, try login by password
         if logined is False and password:
             for _ in range(self.LOGIN_RETRY_NUM):
                 logined = vca.login(password)
@@ -192,6 +213,10 @@ class VcloudAirClient(object):
                     ctx.logger.info("Login using password successful.")
                     break
 
+        # can't login to system at all
+        if logined is False:
+            raise cfy_exc.NonRecoverableError("Invalid login credentials")
+
         for _ in range(self.LOGIN_RETRY_NUM):
             vdc_logined = vca.login_to_org(service, org_name)
             if vdc_logined is False:
@@ -202,8 +227,9 @@ class VcloudAirClient(object):
                 ctx.logger.info("Login to VDC successful.")
                 break
 
-        if logined is False:
-            raise cfy_exc.NonRecoverableError("Invalid login credentials")
+        # we can login to system,
+        # but have some troubles with login to organization,
+        # lets retry later
         if vdc_logined is False:
             raise cfy_exc.RecoverableError(message="Could not login to VDC",
                                            retry_after=RELOGIN_TIMEOUT)
@@ -212,6 +238,9 @@ class VcloudAirClient(object):
         return vca
 
     def _ondemand_login(self, url, username, password, token, instance_id):
+        """
+            login to ondemand service
+        """
         def get_instance(vca, instance_id):
             instances = vca.get_instances() or []
             for instance in instances:
@@ -227,6 +256,7 @@ class VcloudAirClient(object):
         vca = vcloudair.VCA(
             url, username, service_type=ONDEMAND_SERVICE_TYPE, version='5.7')
 
+        # login with token
         if token:
             for _ in range(self.LOGIN_RETRY_NUM):
                 logined = vca.login(token=token)
@@ -238,6 +268,7 @@ class VcloudAirClient(object):
                     ctx.logger.info("Login using token successful.")
                     break
 
+        # outdated token, try login by password
         if logined is False and password:
             for _ in range(self.LOGIN_RETRY_NUM):
                 logined = vca.login(password)
@@ -248,6 +279,10 @@ class VcloudAirClient(object):
                 else:
                     ctx.logger.info("Login using password successful.")
                     break
+
+        # can't login to system at all
+        if logined is False:
+            raise cfy_exc.NonRecoverableError("Invalid login credentials")
 
         instance = get_instance(vca, instance_id)
         if instance is None:
@@ -280,8 +315,9 @@ class VcloudAirClient(object):
                 ctx.logger.info("Login to instance successful.")
                 break
 
-        if logined is False:
-            raise cfy_exc.NonRecoverableError("Invalid login credentials")
+        # we can login to system,
+        # but have some troubles with login to instance,
+        # lets retry later
         if instance_logined is False:
             raise cfy_exc.RecoverableError(
                 message="Could not login to instance",
@@ -292,6 +328,9 @@ class VcloudAirClient(object):
 
     def _private_login(self, url, username, password, token, org_name,
                        org_url=None, api_version='5.6'):
+        """
+            login to private instance
+        """
         logined = False
 
         vca = vcloudair.VCA(
@@ -337,6 +376,9 @@ class VcloudAirClient(object):
 
 
 def with_vca_client(f):
+    """
+        add vca client to function params
+    """
     @wraps(f)
     def wrapper(*args, **kw):
         config = None
@@ -353,6 +395,11 @@ def with_vca_client(f):
 
 
 def wait_for_task(vca_client, task):
+    """
+        check status of current task and make request for recheck
+        task status in case when we have not well defined state
+        (not error and not success)
+    """
     status = task.get_status()
     while status != TASK_STATUS_SUCCESS:
         if status == TASK_STATUS_ERROR:
@@ -369,6 +416,9 @@ def wait_for_task(vca_client, task):
 
 
 def get_vcloud_config():
+    """
+        get vcloud config from node properties
+    """
     config = None
     if ctx.type == context.NODE_INSTANCE:
         config = ctx.node.properties.get('vcloud_config')
@@ -383,6 +433,9 @@ def get_vcloud_config():
 
 
 def get_mandatory(obj, parameter):
+    """
+        return value for field or raise exception if field does not exist
+    """
     value = obj.get(parameter)
     if value:
         return value
@@ -392,8 +445,14 @@ def get_mandatory(obj, parameter):
 
 
 def is_subscription(service_type):
+    """
+        check service type is subscription or empty
+    """
     return not service_type or service_type == SUBSCRIPTION_SERVICE_TYPE
 
 
 def is_ondemand(service_type):
+    """
+        check service type is ondemand
+    """
     return service_type == ONDEMAND_SERVICE_TYPE

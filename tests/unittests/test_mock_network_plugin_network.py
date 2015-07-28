@@ -1,8 +1,22 @@
+# Copyright (c) 2014 GigaSpaces Technologies Ltd. All rights reserved
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+#  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  * See the License for the specific language governing permissions and
+#  * limitations under the License.
+
 import mock
 import unittest
 
 from cloudify import exceptions as cfy_exc
-import test_mock_base
+from tests.unittests import test_mock_base
 from network_plugin import network
 import vcloud_plugin_common
 
@@ -140,10 +154,9 @@ class NetworkPluginNetworkMockTestCase(test_mock_base.TestBase):
             # success in create_vdc_network
             fake_client.create_vdc_network = mock.MagicMock(
                 return_value=(
-                    True,
-                    self.generate_task(
+                    True, self.generate_task(
                         vcloud_plugin_common.TASK_STATUS_SUCCESS
-                   )
+                    )
                 )
             )
             self.set_services_conf_result(

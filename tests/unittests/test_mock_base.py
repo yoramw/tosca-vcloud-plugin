@@ -1,3 +1,17 @@
+# Copyright (c) 2014 GigaSpaces Technologies Ltd. All rights reserved
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+#  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  * See the License for the specific language governing permissions and
+#  * limitations under the License.
+
 import mock
 import unittest
 from cloudify import mocks as cfy_mocks
@@ -95,12 +109,12 @@ class TestBase(unittest.TestCase):
         gate.get_public_ips = mock.MagicMock(return_value=[])
         return gate
 
-    def gen_vca_client_network(
+    def generate_fake_client_network(
         self, fenceMode=None, name="some", start_ip="127.1.1.1",
         end_ip="127.1.1.255"
     ):
         """
-            generate network for vca_client
+            generate network for vca client
         """
         network = mock.Mock()
         # generate ip
@@ -157,13 +171,40 @@ class TestBase(unittest.TestCase):
         """
             set any network as routed
         """
-        network = self.gen_vca_client_network(NAT_ROUTED)
+        network = self.generate_fake_client_network(NAT_ROUTED)
         fake_client.get_network = mock.MagicMock(return_value=network)
+
+    def generate_fake_client_disk(self, name="some_disk"):
+        """
+            generate fake disk for fake client,
+            have used in client.get_disks
+        """
+        disk = mock.Mock()
+        disk.name = name
+        return disk
+
+    def generate_fake_client_disk_ref(self, name):
+        """
+            generate ref for disk,
+            have used for client.get_diskRefs
+        """
+        ref = mock.Mock()
+        ref.name = name
+        return ref
+
+    def generate_fake_vms_disk(self, name="some_disk"):
+        """
+            generate attached vms for disk,
+            have used for client.get_disks
+        """
+        vms = mock.Mock()
+        vms._disk = name
+        return vms
 
     def generate_client(self, vms_networks=None, vdc_networks=None):
 
-        def _gen_vca_client_network(vdc_name, network_name):
-            return self.gen_vca_client_network(network_name)
+        def _generate_fake_client_network(vdc_name, network_name):
+            return self.generate_fake_client_network(network_name)
 
         def _get_admin_network_href(vdc_name, network_name):
             return "_href" + network_name
@@ -202,7 +243,7 @@ class TestBase(unittest.TestCase):
         )
         client = mock.Mock()
         client.get_catalogs = mock.MagicMock(return_value=[catalog])
-        client.get_network = _gen_vca_client_network
+        client.get_network = _generate_fake_client_network
         client.get_networks = mock.MagicMock(return_value=[])
         client.get_admin_network_href = _get_admin_network_href
         client._vdc_gateway = _get_gateway()
@@ -220,6 +261,34 @@ class TestBase(unittest.TestCase):
         client.create_vdc_network = mock.MagicMock(
             return_value=(False, None)
         )
+        # disks for client
+        client.add_disk = mock.MagicMock(
+            return_value=(False, None)
+        )
+        client.get_disks = mock.MagicMock(return_value=[])
+        client.add_disk = mock.MagicMock(
+            return_value=(False, None)
+        )
+        client.delete_disk = mock.MagicMock(
+            return_value=(False, None)
+        )
+        client.get_diskRefs = mock.MagicMock(return_value=[])
+        # login authification
+        client.login = mock.MagicMock(
+            return_value=False
+        )
+        client.logout = mock.MagicMock(
+            return_value=False
+        )
+        client.get_instances = mock.MagicMock(
+            return_value=[]
+        )
+        client.login_to_instance = mock.MagicMock(
+            return_value=False
+        )
+        client.login_to_org = mock.MagicMock(
+            return_value=False
+        )
         return client
 
     def generate_vca(self):
@@ -233,6 +302,20 @@ class TestBase(unittest.TestCase):
         vapp = mock.Mock()
         vapp.me = mock.Mock()
         vapp.get_vms_network_info = _get_vms_network_info
+        # disk for vapp
+        vapp.attach_disk_to_vm = mock.MagicMock(
+            return_value=None
+        )
+        vapp.detach_disk_from_vm = mock.MagicMock(
+            return_value=None
+        )
+        # mememory/cpu customize
+        vapp.modify_vm_memory = mock.MagicMock(
+            return_value=None
+        )
+        vapp.modify_vm_cpu = mock.MagicMock(
+            return_value=None
+        )
         return vapp
 
     def generate_relation_context(self):
