@@ -177,6 +177,11 @@ def nat_network_operation(vca_client, gateway, operation, rule_type, public_ip,
             private_ip, translated_port, protocol)
         function = gateway.add_nat_rule
         message = "Add"
+        if _is_dnat(rule_type):
+            if(translated_port == '22'):
+                ctx.source.instance.runtime_properties['ssh_port'] = 
+                    str(new_original_port)
+
     elif operation == DELETE:
         new_original_port = _get_original_port_for_delete(
             public_ip, original_port)

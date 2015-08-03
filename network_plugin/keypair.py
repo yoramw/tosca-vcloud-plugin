@@ -68,6 +68,18 @@ def delete(**kwargs):
     del ctx.instance.runtime_properties[PRIVATE_KEY]
     del ctx.instance.runtime_properties[PUBLIC_KEY]
 
+@operation
+def server_connect_to_keypair(**kwargs):
+    host_rt_properties = ctx.source.instance.runtime_properties
+    if not ssh_key in host_rt_properties:
+        host_rt_properties['ssh_key'] = ctx.source.instance.runtime_properties[PRIVATE_KEY]
+        host_rt_properties['ssh_key']['user'] = ctx.source.instance.runtime_properties[PUBLIC_KEY][USER]
+
+@operation
+def server_disconnect_from_keypair(**kwargs):
+    host_rt_properties = ctx.source.instance.runtime_properties
+    if _keypair in host_rt_properties:
+       del host_rt_properties['ssh_key'] 
 
 def _generate_pair():
     Random.atfork()  # uses for strong key generation
